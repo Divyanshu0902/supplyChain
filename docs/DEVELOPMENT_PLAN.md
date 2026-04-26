@@ -26,51 +26,69 @@
 
 ## Phase 0 — Foundation & Architecture Fixes
 
-> **Goal:** Clean up existing dead code, establish project conventions, and lay the infrastructure every other phase depends on.
+> **Goal:** Clean up existing dead code, resolve all pre-dev audit issues, establish project conventions, and lay the infrastructure every other phase depends on.
+
+> ⚠️ **Audit:** All items marked `[AUDIT]` are required fixes identified in `PRE_DEV_AUDIT.md` and must be completed before any feature work begins.
 
 ### Sprint 0.1 — Project Cleanup & Infrastructure Setup
 
-**Duration:** 1–2 days
+**Duration:** 1–2 days  
+**Audit issues resolved:** ISSUE-10, ISSUE-02, ISSUE-03, ISSUE-04, ISSUE-05, ISSUE-13
 
 #### Sub-tasks
 
-- [ ] **0.1.1 — Delete dead file**  
-  Remove `src/app/app.routes.jsx` (unused router definition conflicting with inline routes in `App.jsx`).
+- [ ] **0.1.1 — [AUDIT ISSUE-10] Delete dead file**  
+  Remove `src/app/app.routes.jsx`. This file defines a `createBrowserRouter` that is imported nowhere and conflicts with the inline route definitions in `App.jsx`. Its `/` → `<Login />` mapping contradicts `App.jsx`'s `/` → `<h1>Home</h1>`.
 
 - [ ] **0.1.2 — Environment variables**  
   Create `.env` file with:
   ```
   VITE_API_BASE_URL=https://delivery-routing-system.onrender.com
   ```
-  Update `auth.api.js` to use `import.meta.env.VITE_API_BASE_URL`.  
-  Add `.env` to `.gitignore`.
+  Add `.env` to `.gitignore`. All API files must reference `import.meta.env.VITE_API_BASE_URL` — never hardcode the URL again.
 
-- [ ] **0.1.3 — Centralised Axios instance**  
-  Create `src/shared/api/axiosInstance.js`:
-  - Reads base URL from env var
-  - Attaches `Authorization: Bearer {token}` via request interceptor (reads from store/localStorage)
-  - Global response interceptor for 401 → redirect to `/login`, 422 → normalise validation errors, 500 → generic error toast
+- [ ] **0.1.3 — Token storage utility**  
+  Create `src/shared/utils/token.js`:  
+  *(Prerequisite for ISSUE-02 and ISSUE-03 fixes)*
+  ```js
+  export const getToken    = () => localStorage.getItem('sc_token');
+  export const setToken    = (t) => localStorage.setItem('sc_token', t);
+  export const removeToken = () => localStorage.removeItem('sc_token');
+  ```
 
-- [ ] **0.1.4 — Token storage utility**  
-  Create `src/shared/utils/token.js` with `getToken()`, `setToken(t)`, `removeToken()` helpers (wrapping localStorage).
+- [ ] **0.1.4 — [AUDIT ISSUE-02 + ISSUE-03] Centralised Axios instance**  
+  Create `src/shared/api/axiosInstance.js`:  
+  - Reads base URL from `import.meta.env.VITE_API_BASE_URL`  
+  - **Request interceptor:** calls `getToken()` and attaches `Authorization: Bearer {token}` header — replaces the broken `withCredentials: true` approach  
+  - **Response interceptor:** 401 → `removeToken()` + redirect `/login`, 422 → parse `detail[]` array into readable messages, 500 → generic error toast  
+  - All feature `*.api.js` files must import and use this instance — never create feature-level Axios instances
 
 - [ ] **0.1.5 — Shared Redux selectors**  
   Create `src/features/auth/state/auth.selectors.js` exporting:
   - `selectUser`
   - `selectAuthLoading`
   - `selectAuthError`
-  - `selectIsAuthenticated`
+  - `selectIsAuthenticated` — `(state) => !!state.auth.user`
+  - `selectInitialized`
 
-- [ ] **0.1.6 — Toast notification setup**  
-  Install and configure a toast library (e.g., `react-hot-toast`). Place `<Toaster />` once in `App.jsx`.
+- [ ] **0.1.6 — [AUDIT ISSUE-13] Update CODEBASE_REPORT.md**  
+  In `docs/CODEBASE_REPORT.md`, update the Backend Integration section:  
+  - Change **"Cookie-based sessions (`withCredentials: true`)"** → **"JWT Bearer Token stored in localStorage, attached via Axios request interceptor"**  
+  - Remove any references to `withCredentials` as the auth mechanism
 
-- [ ] **0.1.7 — Shared component scaffolding**  
+- [ ] **0.1.7 — Toast notification setup**  
+  Install and configure `react-hot-toast`. Place `<Toaster />` once in `App.jsx`.
+  ```bash
+  npm install react-hot-toast
+  ```
+
+- [ ] **0.1.8 — Shared component scaffolding**  
   Create `src/shared/components/` directory for reusable UI atoms:
   - `Spinner.jsx` — loading spinner
   - `Button.jsx` — variant-aware button (primary / secondary / danger)
   - `StatusBadge.jsx` — coloured pill: pending / in-transit / delivered / delayed
 
-- [ ] **0.1.8 — Global CSS design tokens**  
+- [ ] **0.1.9 — Global CSS design tokens**  
   In `App.css`, define CSS custom properties for the design system colours, spacing, and typography seen in the dashboard UI (light blue-grey background, white cards, sidebar dark tone, accent blue `#2563EB`).
 
 ---
@@ -81,49 +99,91 @@
 
 ### Sprint 1.1 — Auth Fixes & JWT Integration
 
-**Duration:** 2 days
+**Duration:** 2 days  
+**Audit issues resolved:** ISSUE-01, ISSUE-05, ISSUE-06, ISSUE-07, ISSUE-08, ISSUE-09, ISSUE-11, ISSUE-12, ISSUE-14
 
 **Backend contracts:**
-- `POST /user/Login/` → `{ access_token, token_type }`
-- `POST /user/Signup/` → `{ id, username, email, role }`
-- `POST /user/logout/` (Bearer required)
+- `POST /user/Login/` → `{ access_token, token_type }` *(form-encoded)*
+- `POST /user/Signup/` → `{ id, username, email, role }` *(JSON, no `role` in request)*
+- `POST /user/logout/` *(Bearer required, lowercase 'l', trailing slash)*
 
 #### Sub-tasks
 
-- [ ] **1.1.1 — Fix Signup schema**  
-  The backend Signup endpoint does **not** accept a `role` field in its request body (per schema). Remove the `role` select input from `Register.jsx` and from the `handleRegister` payload in `useAuth.js` and `auth.api.js`.
+- [ ] **1.1.1 — [AUDIT ISSUE-06] Fix Signup schema — remove `role` field**  
+  The backend Signup schema does **not** accept `role` — it is assigned server-side. Sending it may cause a 422 error.  
+  - Remove the `role` select input from `Register.jsx` (state, JSX, `handleSubmit`)  
+  - Remove `role` parameter from `useAuth.handleRegister` signature  
+  - Remove `role` from the `auth.api.register` function body and the `register()` API call
 
-- [ ] **1.1.2 — JWT storage on login**  
-  After `POST /user/Login/` returns `{ access_token }`:
-  - Call `setToken(access_token)` from the token utility.
-  - Store a decoded or profile-fetched user object in Redux `auth.user`.
+- [ ] **1.1.2 — [AUDIT ISSUE-07 + ISSUE-08] Fix endpoint URLs — add trailing slashes**  
+  FastAPI routes are defined with trailing slashes. Without them, requests may 307-redirect or 404.  
+  In `auth.api.js`:  
+  - `'/user/Signup'` → `'/user/Signup/'`  
+  - `'/user/Login'` → `'/user/Login/'`
 
-- [ ] **1.1.3 — Fetch user profile after login**  
-  After token is stored, call `GET /user/me` (or equivalent profile endpoint) to populate the user object in the Redux store (name, role, work_location etc.).  
-  *(If no `/me` endpoint exists, derive user info from JWT payload using `atob` decode.)*
+- [ ] **1.1.3 — [AUDIT ISSUE-04] Fix logout endpoint URL — case + trailing slash**  
+  In `auth.api.js` line 42:  
+  - `'/user/Logout'` → `'/user/logout/'` *(lowercase 'l', trailing slash)*
 
-- [ ] **1.1.4 — Session persistence on app load**  
+- [ ] **1.1.4 — [AUDIT ISSUE-02] Remove `withCredentials` — switch to JWT Bearer**  
+  In `auth.api.js`:  
+  - Remove the standalone `authApiInstance` with `withCredentials: true`  
+  - Import and use the shared `axiosInstance` from `src/shared/api/axiosInstance.js` (built in Sprint 0.1.4)  
+  - The request interceptor will automatically attach `Authorization: Bearer <token>` to all calls
+
+- [ ] **1.1.5 — [AUDIT ISSUE-01] Fix `response.user` — correctly read backend response**  
+  The backend never returns a `.user` key — `response.user` is always `undefined`.  
+  - **Login:** response is `{ access_token, token_type }` → call `setToken(response.access_token)`, then decode the JWT payload to populate `auth.user`:  
+    ```js
+    const payload = JSON.parse(atob(response.access_token.split('.')[1]));
+    dispatch(setUser({ username: payload.sub, ...payload }));
+    ```
+  - **Register:** response is `{ id, username, email, role }` → dispatch it directly:  
+    ```js
+    dispatch(setUser(response)); // not response.user
+    ```
+
+- [ ] **1.1.6 — [AUDIT ISSUE-05] Fix logout — return actual backend response**  
+  Remove the hardcoded success object from `auth.api.logout()`. Return `response.data` from the actual `POST /user/logout/` call so real backend errors are not silently masked.
+
+- [ ] **1.1.7 — [AUDIT ISSUE-09] Fix error messages — extract FastAPI `detail`**  
+  In every `catch` block in `useAuth.js`, replace `error.message` with proper FastAPI error extraction:  
+  ```js
+  const detail = error.response?.data?.detail;
+  const msg = Array.isArray(detail)
+    ? detail.map(e => e.msg).join(', ')  // 422 validation array
+    : (detail ?? error.message);          // string or JS fallback
+  dispatch(setError(msg));
+  ```
+
+- [ ] **1.1.8 — [AUDIT ISSUE-09] Clear error on new attempt**  
+  Dispatch `setError(null)` at the **start** of every handler in `useAuth.js` (before `setLoading(true)`).
+
+- [ ] **1.1.9 — [AUDIT ISSUE-14] Session persistence on app load — JWT decode (no `/user/me`)**  
+  `GET /user/me` does not exist in the backend. Use JWT decode instead.  
   In `App.jsx`, add a `useEffect` that runs once on mount:
-  1. Check `getToken()` from localStorage.
-  2. If token exists → set it in Axios interceptor → fetch user profile → `dispatch(setUser(...))` → `dispatch(setInitialized(true))`.
-  3. If no token → `dispatch(setInitialized(true))` (unauthenticated).
-  Show a full-screen loading spinner until `initialized === true`.
+  1. Call `getToken()` from localStorage.
+  2. If token exists → decode payload with `atob(token.split('.')[1])` → check `payload.exp` against `Date.now()` → if valid, `dispatch(setUser({ username: payload.sub, ...payload }))`.
+  3. If token is missing or expired → `removeToken()`.
+  4. Always → `dispatch(setInitialized(true))` at the end.
+  Show a full-screen `<Spinner />` until `initialized === true`.
 
-- [ ] **1.1.5 — Fix Logout**  
-  - Call `POST /user/logout/` with Bearer token.
-  - On success: `removeToken()`, `dispatch(setUser(null))`, navigate to `/login`.
-  - Move logout trigger out of `Login.jsx`.
+- [ ] **1.1.10 — [AUDIT ISSUE-11] Wire `setInitialized` dispatch**  
+  `setInitialized` is defined in the slice but never called anywhere — PrivateRoute depends on it being `true`. Ensure it is dispatched in the startup `useEffect` above (both success and no-token paths).
 
-- [ ] **1.1.6 — Clear error state on new attempt**  
-  Dispatch `setError(null)` at the start of every handler in `useAuth.js`.
+- [ ] **1.1.11 — [AUDIT ISSUE-12] Remove Logout button from Login page**  
+  `Login.jsx` renders a Logout button which is semantically incorrect on a public page.  
+  - Delete lines 95–101 from `Login.jsx`  
+  - Logout will be placed in the authenticated `AppShell` sidebar/top-bar (Sprint 2.1)
 
-- [ ] **1.1.7 — Show loading & error in Login/Register UI**  
+- [ ] **1.1.12 — Show loading & error in Login/Register UI**  
   Use `useSelector(selectAuthLoading)` and `useSelector(selectAuthError)` to:
-  - Disable the submit button and show a spinner while loading.
-  - Display an inline error message below the form on failure.
+  - Disable submit button and show spinner while loading
+  - Display inline error message below the form on failure
 
-- [ ] **1.1.8 — Post-registration redirect**  
-  After successful `handleRegister`, `navigate('/login')` with a success toast.
+- [ ] **1.1.13 — [AUDIT ISSUE-14] Post-registration redirect**  
+  After successful `handleRegister`, `navigate('/login')` with a success toast.  
+  Update `docs/DEVELOPMENT_PLAN.md` Sprint 1.1.3 note — confirmed no `/user/me` endpoint exists.
 
 ### Sprint 1.2 — Protected Routes & Role Guards
 
