@@ -3,7 +3,7 @@
 > **Stack:** React 19 · Vite · Redux Toolkit · React Router DOM v7 · Tailwind CSS v4 · Axios  
 > **Backend:** FastAPI at `https://delivery-routing-system.onrender.com`  
 > **Auth Strategy:** JWT Bearer Token (stored in memory / localStorage)  
-> **Reference UI:** Dashboard design (see attached image — sidebar nav, stat cards, consignment table, upcoming deliveries panel)
+> **Reference UI:** Dashboard design (see attached images: `Screenshot 2026-04-26 173804.png` and `Screenshot 2026-04-26 173826.png` in the root directory — sidebar nav, stat cards, consignment table, upcoming deliveries panel). The UI must exactly match these screenshots (using placeholder data initially, to be replaced by live data later).
 
 ---
 
@@ -229,7 +229,7 @@
 
 **Duration:** 2 days
 
-**Reference UI elements:**
+**Reference UI elements (Strictly match with `Screenshot 2026-04-26 173804.png` and `Screenshot 2026-04-26 173826.png`):**
 - Left sidebar: "Smart Supply / Chain Operations" logo, nav sections (Overview, Operations, Account), active state highlight
 - Top bar: global search (⌘K shortcut), notification bell with badge, help icon, user avatar
 - Main content area: breadcrumb trail, page title, action buttons (Export, + New Consignment)
@@ -271,7 +271,7 @@
 
 ## Phase 3 — Dashboard
 
-> **Goal:** Build the overview dashboard page matching the reference UI — 4 stat cards, recent consignments table, upcoming deliveries panel.
+> **Goal:** Build the overview dashboard page matching the reference UI exactly (`Screenshot 2026-04-26 173804.png` and `Screenshot 2026-04-26 173826.png`) — 4 stat cards, recent consignments table, upcoming deliveries panel. Placeholder data should be used initially and replaced with live data later.
 
 ### Sprint 3.1 — Dashboard Page
 
